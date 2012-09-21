@@ -23,6 +23,26 @@ module Capistrano
         default_attribute :local_cache, '.rsync_cache'
         default_attribute :repository_cache, 'cached-copy'
 
+        def execute description, &block
+          logger.debug description
+          handle_system_errors &block
+        end
+
+        def handle_system_errors &block
+          block.call
+          raise_command_failed if last_command_failed?
+        end
+
+        def last_command_failed?
+          $? != 0
+        end
+
+        def build directory
+          execute "running build script on #{directory}" do
+            Dir.chdir(directory) { system(build_script) }
+          end if build_script
+        end
+
         def deploy!
           puts "deploying with RsyncWithRemoteCacheExt"
           update_local_cache
@@ -32,6 +52,7 @@ module Capistrano
         
         def update_local_cache
           system(command)
+          build local_cache_path
           mark_local_cache
         end
         
@@ -45,7 +66,7 @@ module Capistrano
         end
         
         def rsync_command_for(server)
-          "rsync #{rsync_options} --rsh='ssh -p #{ssh_port(server)}' #{local_cache_path}/ #{rsync_host(server)}:#{repository_cache_path}/"
+          "rsync #{rsync_options} --rsh='ssh -p #{ssh_port(server)}' #{local_rsync_path}/ #{rsync_host(server)}:#{repository_cache_path}/"
         end
         
         def mark_local_cache
@@ -58,6 +79,14 @@ module Capistrano
         
         def local_cache_path
           File.expand_path(local_cache)
+        end
+        
+        def local_rsync_path
+          if configuration[:deploy_subdir] then
+            File.join(local_cache_path, configuration[:deploy_subdir])
+          else 
+            local_cache_path
+          end
         end
         
         def repository_cache_path
