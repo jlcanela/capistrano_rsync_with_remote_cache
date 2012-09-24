@@ -32,6 +32,10 @@ module Capistrano
           block.call
           raise_command_failed if last_command_failed?
         end
+        
+        def raise_command_failed
+          raise Capistrano::Error, "shell command failed with return code #{$?}"
+        end
 
         def last_command_failed?
           $? != 0
